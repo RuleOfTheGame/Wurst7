@@ -19,11 +19,9 @@ import net.wurstclient.settings.SliderSetting.ValueDisplay;
 public final class AutoSwitchHack extends Hack implements UpdateListener
 {
 	private final SliderSetting switchDelay = new SliderSetting("Switch delay",
-    "Delay between slot switches, in ticks.", 1, 1, 20, 1,
-    ValueDisplay.INTEGER.withSuffix(" ticks"));
-
+        "Delay between slot switches, in ticks.", 1, 1, 20, 1,
+         ValueDisplay.INTEGER.withSuffix(" ticks"));
 	private int tickCounter;
-
 	public AutoSwitchHack()
 	{
 		super("AutoSwitch");
