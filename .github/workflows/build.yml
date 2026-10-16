@@ -21,8 +21,14 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
       - name: Format Java code
-        run: chmod +x gradlew && ./gradlew spotlessApply --no-daemon
+        run: ./gradlew spotlessApply --no-daemon
+
+      - name: Verify formatting
+        run: ./gradlew spotlessJavaCheck --no-daemon
 
       - name: Build with Gradle
         run: ./gradlew build --no-daemon
