@@ -5,6 +5,7 @@
  * License, version 3. If a copy of the GPL was not distributed with this
  * file, You can obtain one at: https://www.gnu.org/licenses/gpl-3.0.txt
  */
+
 package net.wurstclient.hacks;
 
 import net.minecraft.world.entity.player.Inventory;
@@ -19,40 +20,42 @@ import net.wurstclient.settings.SliderSetting.ValueDisplay;
 public final class AutoSwitchHack extends Hack implements UpdateListener
 {
 	private final SliderSetting switchDelay = new SliderSetting("Switch delay",
-        "Delay between slot switches, in ticks.", 1, 1, 20, 1,
-         ValueDisplay.INTEGER.withSuffix(" ticks"));
+		"Delay between slot switches, in ticks.", 1, 1, 20, 1,
+		ValueDisplay.INTEGER.withSuffix(" ticks"));
+	
 	private int tickCounter;
+	
 	public AutoSwitchHack()
 	{
 		super("AutoSwitch");
 		setCategory(Category.ITEMS);
 		addSetting(switchDelay);
 	}
-
+	
 	@Override
 	protected void onEnable()
 	{
 		tickCounter = 0;
 		EVENTS.add(UpdateListener.class, this);
 	}
-
+	
 	@Override
 	protected void onDisable()
 	{
 		EVENTS.remove(UpdateListener.class, this);
 	}
-
+	
 	@Override
 	public void onUpdate()
 	{
 		if(++tickCounter < switchDelay.getValue())
 			return;
-
+		
 		tickCounter = 0;
-
+		
 		Inventory inventory = MC.player.getInventory();
 		int prevSlot = inventory.getSelectedSlot();
-
+		
 		if(prevSlot == 8)
 			inventory.setSelectedSlot(0);
 		else
