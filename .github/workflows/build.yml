@@ -20,7 +20,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-
+          
+      - name: Apply Spotless formatting
+        run: ./gradlew spotlessApply --no-daemon
+ 
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
