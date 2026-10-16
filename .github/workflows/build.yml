@@ -21,8 +21,11 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Format Java code
+        run: chmod +x gradlew && ./gradlew spotlessApply --no-daemon
+
       - name: Build with Gradle
-        run: chmod +x gradlew && ./gradlew build --no-daemon
+        run: ./gradlew build --no-daemon
 
       - name: Upload JAR files
         uses: actions/upload-artifact@v4
