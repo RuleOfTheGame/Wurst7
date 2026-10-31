@@ -21,7 +21,7 @@ import net.wurstclient.hack.Hack;
 
 public final class AutoQuestHack extends Hack implements UpdateListener
 {
-    private static final int CYCLE_INTERVAL = 5 * 20;
+    private static final int CYCLE_INTERVAL = 7 * 20;
     private static final int STEP_DELAY = 30;
 
     private int timer;
