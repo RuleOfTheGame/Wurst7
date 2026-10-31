@@ -7,6 +7,7 @@
  * file, You can obtain one at: https://www.gnu.org/licenses/gpl-3.0.txt
  */
 
+
 package net.wurstclient.hacks;
 
 import net.minecraft.client.gui.screens.Screen;
@@ -37,6 +38,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             ValueDisplay.INTEGER.withSuffix(" minutes"));
 
     private static final int AUTOMOB_INTERVAL = 5 * 20;
+    private static final int CLICK_DELAY = 10;
 
     private int automob1Timer;
     private int automob2Timer;
@@ -45,6 +47,11 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     private boolean waitingForGui;
     private int pendingSlots;
     private Screen previousScreen;
+
+    private final int[] clickQueue = new int[3];
+    private int clickQueueSize;
+    private int nextClickIndex;
+    private int clickDelayTimer;
 
     public AutoQuestHack()
     {
@@ -67,6 +74,10 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         waitingForGui = false;
         pendingSlots = 0;
 
+        clickQueueSize = 0;
+        nextClickIndex = 0;
+        clickDelayTimer = 0;
+
         EVENTS.add(UpdateListener.class, this);
     }
 
@@ -77,6 +88,10 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         waitingForGui = false;
         pendingSlots = 0;
+
+        clickQueueSize = 0;
+        nextClickIndex = 0;
+        clickDelayTimer = 0;
     }
 
     @Override
@@ -84,6 +99,15 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         if(MC.player == null || MC.getConnection() == null)
             return;
+
+        // Continue clicking the queued slots one by one.
+        if(clickQueueSize > 0)
+        {
+            if(MC.screen instanceof AbstractContainerScreen<?> screen)
+                processQuestClicks(screen);
+
+            return;
+        }
 
         if(waitingForGui)
         {
@@ -151,35 +175,77 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(MC.screen == previousScreen)
             return;
 
-        clickQuestSlot(screen, 27, 1);
-        clickQuestSlot(screen, 28, 2);
-        clickQuestSlot(screen, 29, 4);
+        clickQueueSize = 0;
 
+        if((pendingSlots & 1) != 0)
+            clickQueue[clickQueueSize++] = 27;
+
+        if((pendingSlots & 2) != 0)
+            clickQueue[clickQueueSize++] = 28;
+
+        if((pendingSlots & 4) != 0)
+            clickQueue[clickQueueSize++] = 29;
+
+        nextClickIndex = 0;
+        clickDelayTimer = 0;
         waitingForGui = false;
+
+        processQuestClicks(screen);
     }
 
-    private void clickQuestSlot(
-        AbstractContainerScreen<?> screen, int slotIndex, int flag)
+    private void processQuestClicks(
+        AbstractContainerScreen<?> screen)
     {
-        if((pendingSlots & flag) == 0)
+        if(nextClickIndex >= clickQueueSize)
+        {
+            clickQueueSize = 0;
             return;
+        }
+
+        if(clickDelayTimer > 0)
+        {
+            clickDelayTimer--;
+            return;
+        }
+
+        int slotIndex = clickQueue[nextClickIndex];
 
         if(screen.getMenu().slots.size() <= slotIndex)
+        {
+            clickQueueSize = 0;
             return;
+        }
 
         Slot slot = screen.getMenu().slots.get(slotIndex);
 
         screen.slotClicked(
-             slot, slot.index, 0, ClickType.PICKUP);
+            slot, slot.index, 0, ClickType.PICKUP);
 
-        pendingSlots &= ~flag;
-
-        if(flag == 1)
+        if(slotIndex == 27)
+        {
+            pendingSlots &= ~1;
             automob1Timer = 0;
-        else if(flag == 2)
+        }
+        else if(slotIndex == 28)
+        {
+            pendingSlots &= ~2;
             automob2Timer = 0;
-        else if(flag == 4)
+        }
+        else if(slotIndex == 29)
+        {
+            pendingSlots &= ~4;
             autobossTimer = 0;
+        }
+
+        nextClickIndex++;
+
+        if(nextClickIndex >= clickQueueSize)
+        {
+            clickQueueSize = 0;
+            nextClickIndex = 0;
+            clickDelayTimer = 0;
+        }
+        else
+            clickDelayTimer = CLICK_DELAY;
     }
 }
-
