@@ -1,5 +1,4 @@
 
-
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
@@ -22,14 +21,11 @@ import net.wurstclient.hack.Hack;
 public final class AutoQuestHack extends Hack implements UpdateListener
 {
     private static final int CYCLE_INTERVAL = 5 * 20;
-    private static final int SECOND_CLICK_DELAY = 20;
 
-    private int cycleTimer;
-    private int secondClickTimer;
+    private int timer;
+    private int step;
 
     private boolean waitingForGui;
-    private boolean waitingForSecondClick;
-
     private Screen previousScreen;
 
     public AutoQuestHack()
@@ -41,11 +37,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     @Override
     protected void onEnable()
     {
-        cycleTimer = CYCLE_INTERVAL;
-        secondClickTimer = 0;
-
+        timer = 0;
+        step = 0;
         waitingForGui = false;
-        waitingForSecondClick = false;
 
         EVENTS.add(UpdateListener.class, this);
     }
@@ -55,10 +49,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         EVENTS.remove(UpdateListener.class, this);
 
+        timer = 0;
+        step = 0;
         waitingForGui = false;
-        waitingForSecondClick = false;
-
-        secondClickTimer = 0;
     }
 
     @Override
@@ -67,28 +60,21 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(MC.player == null || MC.getConnection() == null)
             return;
 
-        cycleTimer++;
-
-        // Wait for the quest GUI to open.
         if(waitingForGui)
         {
             handleQuestGui();
             return;
         }
 
-        // Wait 1 second before clicking the second slot.
-        if(waitingForSecondClick)
-        {
-            handleSecondClick();
-            return;
-        }
+        timer++;
 
-        // Repeat the whole process every 5 seconds.
-        if(cycleTimer >= CYCLE_INTERVAL)
-        {
-            openQuestGui();
-            cycleTimer = 0;
-        }
+        if(timer < CYCLE_INTERVAL)
+            return;
+
+        timer = 0;
+        step = 0;
+
+        openQuestGui();
     }
 
     private void openQuestGui()
@@ -111,32 +97,28 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(MC.screen == previousScreen)
             return;
 
-        // First click: slot 28 (index 27).
-        clickQuestSlot(screen, 27);
-
-        // Schedule the second click after 1 second.
-        waitingForGui = false;
-        waitingForSecondClick = true;
-        secondClickTimer = SECOND_CLICK_DELAY;
-    }
-
-    private void handleSecondClick()
-    {
-        secondClickTimer--;
-
-        if(secondClickTimer > 0)
-            return;
-
-        if(!(MC.screen instanceof AbstractContainerScreen<?> screen))
+        if(step == 0)
         {
-            waitingForSecondClick = false;
-            return;
+            // First action: click slot 28 (index 27).
+            clickQuestSlot(screen, 27);
+
+            step = 1;
+            waitingForGui = false;
+
+            // Reopen the quest GUI for the second action.
+            openQuestGui();
         }
+        else if(step == 1)
+        {
+            // Second action: click slot 29 (index 28).
+            clickQuestSlot(screen, 28);
 
-        // Second click: slot 29 (index 28).
-        clickQuestSlot(screen, 28);
+            step = 2;
+            waitingForGui = false;
 
-        waitingForSecondClick = false;
+            // Wait 5 seconds before starting again.
+            timer = 0;
+        }
     }
 
     private void clickQuestSlot(
