@@ -1,4 +1,5 @@
 
+
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
@@ -21,9 +22,11 @@ import net.wurstclient.hack.Hack;
 public final class AutoQuestHack extends Hack implements UpdateListener
 {
     private static final int CYCLE_INTERVAL = 5 * 20;
+    private static final int STEP_DELAY = 30;
 
     private int timer;
     private int step;
+    private int stepDelayTimer;
 
     private boolean waitingForGui;
     private Screen previousScreen;
@@ -39,6 +42,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         timer = 0;
         step = 0;
+        stepDelayTimer = 0;
         waitingForGui = false;
 
         EVENTS.add(UpdateListener.class, this);
@@ -51,6 +55,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         timer = 0;
         step = 0;
+        stepDelayTimer = 0;
         waitingForGui = false;
     }
 
@@ -66,15 +71,41 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
         }
 
+        // Wait 1.5 seconds between the first and second clicks.
+        if(step == 1)
+        {
+            stepDelayTimer--;
+
+            if(stepDelayTimer <= 0)
+                openQuestGui();
+
+            return;
+        }
+
+        // Wait 5 seconds after the second click.
+        if(step == 2)
+        {
+            timer++;
+
+            if(timer >= CYCLE_INTERVAL)
+            {
+                timer = 0;
+                step = 0;
+                openQuestGui();
+            }
+
+            return;
+        }
+
+        // Start the first quest cycle immediately after 5 seconds.
         timer++;
 
-        if(timer < CYCLE_INTERVAL)
-            return;
-
-        timer = 0;
-        step = 0;
-
-        openQuestGui();
+        if(timer >= CYCLE_INTERVAL)
+        {
+            timer = 0;
+            step = 0;
+            openQuestGui();
+        }
     }
 
     private void openQuestGui()
@@ -105,8 +136,8 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             step = 1;
             waitingForGui = false;
 
-            // Reopen the quest GUI for the second action.
-            openQuestGui();
+            // Wait 1.5 seconds before opening the GUI again.
+            stepDelayTimer = STEP_DELAY;
         }
         else if(step == 1)
         {
@@ -116,7 +147,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             step = 2;
             waitingForGui = false;
 
-            // Wait 5 seconds before starting again.
+            // Start the 5-second timer after the second click.
             timer = 0;
         }
     }
