@@ -170,7 +170,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         Slot slot = screen.getMenu().slots.get(slotIndex);
 
         screen.slotClicked(
-            slot, slot.index, 0, ContainerInput.PICKUP);
+             slot, slot.index, 0, ClickType.PICKUP);
 
         pendingSlots &= ~flag;
 
