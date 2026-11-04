@@ -1,5 +1,4 @@
 
-
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
@@ -18,15 +17,41 @@ import net.minecraft.world.inventory.Slot;
 import net.wurstclient.Category;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
+import net.wurstclient.settings.EnumSetting;
 
 public final class AutoQuestHack extends Hack implements UpdateListener
 {
-    private static final int CYCLE_INTERVAL = 7 * 20;
-    private static final int STEP_DELAY = 30;
+    private enum QuestMode
+    {
+        QUEST_28_29("Quest 28 -> 29"),
+        QUEST_53_2("Quest 53 -> 2");
+
+        private final String displayName;
+
+        QuestMode(String displayName)
+        {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString()
+        {
+            return displayName;
+        }
+    }
+
+    private final EnumSetting<QuestMode> mode =
+        new EnumSetting<>("Mode", QuestMode.values(),
+            QuestMode.QUEST_28_29);
 
     private int timer;
     private int step;
     private int stepDelayTimer;
+
+    private int firstSlot;
+    private int secondSlot;
+    private int stepDelay;
+    private int cycleInterval;
 
     private boolean waitingForGui;
     private Screen previousScreen;
@@ -35,6 +60,8 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         super("AutoQuest");
         setCategory(Category.ITEMS);
+
+        addSetting(mode);
     }
 
     @Override
@@ -44,6 +71,8 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         step = 0;
         stepDelayTimer = 0;
         waitingForGui = false;
+
+        loadModeSettings();
 
         EVENTS.add(UpdateListener.class, this);
     }
@@ -59,6 +88,30 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         waitingForGui = false;
     }
 
+    private void loadModeSettings()
+    {
+        if(mode.getSelected() == QuestMode.QUEST_28_29)
+        {
+            // Mode 1:
+            // Slot 28 -> wait 1.5 seconds -> slot 29
+            // Repeat 7 seconds after slot 29.
+            firstSlot = 27;
+            secondSlot = 28;
+            stepDelay = 30;
+            cycleInterval = 7 * 20;
+        }
+        else
+        {
+            // Mode 2:
+            // Slot 53 -> wait 1 second -> slot 2
+            // Repeat 6 seconds after slot 2.
+            firstSlot = 52;
+            secondSlot = 1;
+            stepDelay = 20;
+            cycleInterval = 6 * 20;
+        }
+    }
+
     @Override
     public void onUpdate()
     {
@@ -71,7 +124,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
         }
 
-        // Wait 1.5 seconds between the first and second clicks.
+        // Wait between the first and second actions.
         if(step == 1)
         {
             stepDelayTimer--;
@@ -82,30 +135,32 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
         }
 
-        // Wait 5 seconds after the second click.
+        // Wait for the next cycle after the second action.
         if(step == 2)
         {
             timer++;
 
-            if(timer >= CYCLE_INTERVAL)
-            {
-                timer = 0;
-                step = 0;
-                openQuestGui();
-            }
+            if(timer >= cycleInterval)
+                startCycle();
 
             return;
         }
 
-        // Start the first quest cycle immediately after 5 seconds.
+        // Initial wait before the first cycle.
         timer++;
 
-        if(timer >= CYCLE_INTERVAL)
-        {
-            timer = 0;
-            step = 0;
-            openQuestGui();
-        }
+        if(timer >= cycleInterval)
+            startCycle();
+    }
+
+    private void startCycle()
+    {
+        loadModeSettings();
+
+        timer = 0;
+        step = 0;
+
+        openQuestGui();
     }
 
     private void openQuestGui()
@@ -130,37 +185,48 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         if(step == 0)
         {
-            // First action: click slot 28 (index 27).
-            clickQuestSlot(screen, 27);
+            // First action.
+            if(!clickQuestSlot(screen, firstSlot))
+            {
+                waitingForGui = false;
+                return;
+            }
 
             step = 1;
             waitingForGui = false;
 
-            // Wait 1.5 seconds before opening the GUI again.
-            stepDelayTimer = STEP_DELAY;
+            // Delay before opening the GUI for the second action.
+            stepDelayTimer = stepDelay;
         }
         else if(step == 1)
         {
-            // Second action: click slot 29 (index 28).
-            clickQuestSlot(screen, 28);
+            // Second action.
+            if(!clickQuestSlot(screen, secondSlot))
+            {
+                waitingForGui = false;
+                stepDelayTimer = 1;
+                return;
+            }
 
             step = 2;
             waitingForGui = false;
 
-            // Start the 5-second timer after the second click.
+            // Start the cycle timer after the second click.
             timer = 0;
         }
     }
 
-    private void clickQuestSlot(
+    private boolean clickQuestSlot(
         AbstractContainerScreen<?> screen, int slotIndex)
     {
         if(screen.getMenu().slots.size() <= slotIndex)
-            return;
+            return false;
 
         Slot slot = screen.getMenu().slots.get(slotIndex);
 
         screen.slotClicked(
             slot, slot.index, 0, ClickType.PICKUP);
+
+        return true;
     }
 }
