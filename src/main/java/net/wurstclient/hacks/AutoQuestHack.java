@@ -1,4 +1,4 @@
-
+```java
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
@@ -93,8 +93,8 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(mode.getSelected() == QuestMode.QUEST_28_29)
         {
             // Mode 1:
-            // Slot 28 -> wait 1.5 seconds -> slot 29
-            // Repeat 7 seconds after slot 29.
+            // /quest -> slot 28 -> wait 1.5 seconds
+            // -> reopen /quest -> slot 29 -> repeat after 7 seconds.
             firstSlot = 27;
             secondSlot = 28;
             stepDelay = 30;
@@ -103,8 +103,8 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         else
         {
             // Mode 2:
-            // Slot 53 -> wait 1 second -> slot 2
-            // Repeat 6 seconds after slot 2.
+            // /quest -> slot 53 -> wait 1 second
+            // -> slot 2 on the transitioned GUI -> repeat after 6 seconds.
             firstSlot = 52;
             secondSlot = 1;
             stepDelay = 20;
@@ -130,7 +130,19 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             stepDelayTimer--;
 
             if(stepDelayTimer <= 0)
-                openQuestGui();
+            {
+                if(mode.getSelected() == QuestMode.QUEST_28_29)
+                {
+                    // Mode 1 requires reopening /quest.
+                    openQuestGui();
+                }
+                else
+                {
+                    // Mode 2 clicks slot 2 on the GUI that
+                    // appeared after clicking slot 53.
+                    clickSecondSlotOnCurrentGui();
+                }
+            }
 
             return;
         }
@@ -189,22 +201,25 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             if(!clickQuestSlot(screen, firstSlot))
             {
                 waitingForGui = false;
+                step = 2;
+                timer = 0;
                 return;
             }
 
             step = 1;
             waitingForGui = false;
 
-            // Delay before opening the GUI for the second action.
+            // Delay before the second action.
             stepDelayTimer = stepDelay;
         }
         else if(step == 1)
         {
-            // Second action.
+            // Mode 1 second action.
             if(!clickQuestSlot(screen, secondSlot))
             {
                 waitingForGui = false;
-                stepDelayTimer = 1;
+                step = 2;
+                timer = 0;
                 return;
             }
 
@@ -214,6 +229,26 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             // Start the cycle timer after the second click.
             timer = 0;
         }
+    }
+
+    private void clickSecondSlotOnCurrentGui()
+    {
+        if(!(MC.screen instanceof AbstractContainerScreen<?> screen))
+        {
+            // Wait until the transitioned GUI is available.
+            stepDelayTimer = 1;
+            return;
+        }
+
+        if(!clickQuestSlot(screen, secondSlot))
+        {
+            step = 2;
+            timer = 0;
+            return;
+        }
+
+        step = 2;
+        timer = 0;
     }
 
     private boolean clickQuestSlot(
