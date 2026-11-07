@@ -105,6 +105,8 @@ public final class HackList implements UpdateListener
 	public final FlightHack flightHack = new FlightHack();
 	public final FollowHack followHack = new FollowHack();
 	public final ForceOpHack forceOpHack = new ForceOpHack();
+	public final AutoPumpkinHack autoPumpkinHack =
+    new AutoPumpkinHack();
 	public final FreecamHack freecamHack = new FreecamHack();
 	public final FullbrightHack fullbrightHack = new FullbrightHack();
 	public final GlideHack glideHack = new GlideHack();
