@@ -61,6 +61,7 @@ public final class HackList implements UpdateListener
 	public final AutoSprintHack autoSprintHack = new AutoSprintHack();
 	public final AutoStealHack autoStealHack = new AutoStealHack();
     public final AutoQuestHack autoQuestHack = new AutoQuestHack();
+	public final AutoPumpkinHack autoPumpkinHack = new AutoPumpkinHack();
 	public final AutoSwimHack autoSwimHack = new AutoSwimHack();
 	public final AutoSwitchHack autoSwitchHack = new AutoSwitchHack();
 	public final AutoChatHack autoChatHack = new AutoChatHack();
