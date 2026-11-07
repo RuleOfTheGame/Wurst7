@@ -51,10 +51,7 @@ public final class AutoPumpkinHack extends Hack
     protected void onDisable()
     {
         EVENTS.remove(UpdateListener.class, this);
-
-        MC.options.keyUp.setDown(false);
-        MC.options.keyJump.setDown(false);
-
+        stopMoving();
         target = null;
     }
 
@@ -62,7 +59,10 @@ public final class AutoPumpkinHack extends Hack
     public void onUpdate()
     {
         if(MC.player == null || MC.level == null)
+        {
+            stopMoving();
             return;
+        }
 
         target = findNearestPumpkin();
 
@@ -87,12 +87,11 @@ public final class AutoPumpkinHack extends Hack
         // Move forward.
         MC.options.keyUp.setDown(true);
 
-        // Jump when colliding with an obstacle.
-        if(MC.player.horizontalCollision
-            && MC.player.onGround())
-        {
-            MC.player.jumpFromGround();
-        }
+        // Jump over obstacles.
+        boolean shouldJump =
+            MC.player.horizontalCollision && MC.player.onGround();
+
+        MC.options.keyJump.setDown(shouldJump);
     }
 
     private BlockPos findNearestPumpkin()
