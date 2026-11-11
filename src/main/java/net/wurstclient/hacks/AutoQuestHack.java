@@ -1,10 +1,9 @@
-```java
+
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
- * This source code is subject to the terms of the GNU General Public
- * License, version 3. If a copy of the GPL was not distributed with this
- * file, You can obtain one at: https://www.gnu.org/licenses/gpl-3.0.txt
+ * This source code is subject to the terms of the GNU General
+ * Public License, version 3.
  */
 
 package net.wurstclient.hacks;
@@ -17,39 +16,31 @@ import net.minecraft.world.inventory.Slot;
 import net.wurstclient.Category;
 import net.wurstclient.events.UpdateListener;
 import net.wurstclient.hack.Hack;
-import net.wurstclient.settings.EnumSetting;
+import net.wurstclient.settings.CheckboxSetting;
 
 public final class AutoQuestHack extends Hack implements UpdateListener
 {
-    private enum QuestMode
-    {
-        QUEST_28_29("Quest 28 -> 29"),
-        QUEST_53_2("Quest 53 -> 2"),
-        QUEST_53_4_53_5("Quest 53 -> 4 -> 53 -> 5");
+    private static final int QUEST1_INTERVAL = 7 * 20;
+    private static final int QUEST2_INTERVAL = 6 * 20;
 
-        private final String displayName;
+    private static final int QUEST1_DELAY = 30;
+    private static final int QUEST2_DELAY = 20;
 
-        QuestMode(String displayName)
-        {
-            this.displayName = displayName;
-        }
+    private final CheckboxSetting quest1 =
+        new CheckboxSetting("Quest 1", true);
 
-        @Override
-        public String toString()
-        {
-            return displayName;
-        }
-    }
+    private final CheckboxSetting quest2 =
+        new CheckboxSetting("Quest 2", false);
 
-    private final EnumSetting<QuestMode> mode =
-        new EnumSetting<>("Mode", QuestMode.values(),
-            QuestMode.QUEST_28_29);
+    private int quest1Timer;
+    private int quest2Timer;
 
-    private QuestMode activeMode;
+    private boolean quest1Pending;
+    private boolean quest2Pending;
 
-    private int timer;
+    private int activeRoutine;
     private int step;
-    private int delayTimer;
+    private int waitTimer;
 
     private boolean waitingForGui;
     private Screen previousScreen;
@@ -58,18 +49,15 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         super("AutoQuest");
         setCategory(Category.ITEMS);
-        addSetting(mode);
+
+        addSetting(quest1);
+        addSetting(quest2);
     }
 
     @Override
     protected void onEnable()
     {
-        timer = 0;
-        step = 0;
-        delayTimer = 0;
-        waitingForGui = false;
-
-        activeMode = mode.getSelected();
+        resetState();
 
         EVENTS.add(UpdateListener.class, this);
     }
@@ -79,11 +67,22 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         EVENTS.remove(UpdateListener.class, this);
 
-        timer = 0;
+        resetState();
+    }
+
+    private void resetState()
+    {
+        quest1Timer = 0;
+        quest2Timer = 0;
+
+        quest1Pending = false;
+        quest2Pending = false;
+
+        activeRoutine = 0;
         step = 0;
-        delayTimer = 0;
+        waitTimer = 0;
+
         waitingForGui = false;
-        previousScreen = null;
     }
 
     @Override
@@ -92,61 +91,70 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(MC.player == null || MC.getConnection() == null)
             return;
 
+        // Stop a routine if its checkbox is disabled.
+        if(activeRoutine == 1 && !quest1.isChecked()
+            || activeRoutine == 2 && !quest2.isChecked())
+        {
+            finishRoutine();
+        }
+
+        updateRoutineTimers();
+
         if(waitingForGui)
         {
             handleQuestGui();
             return;
         }
 
-        if(step == 1 || step == 4)
+        if(activeRoutine != 0)
         {
-            delayTimer--;
-
-            if(delayTimer <= 0)
-            {
-                if(step == 1)
-                {
-                    if(activeMode == QuestMode.QUEST_28_29)
-                        openQuestGui();
-                    else
-                        clickCurrentGui(1);
-                }
-                else
-                    clickCurrentGui(2);
-            }
-
+            handleRoutineDelay();
             return;
         }
 
-        if(step == 2)
+        // Start pending routines one at a time.
+        if(quest1Pending)
         {
-            timer++;
-
-            if(timer >= 6 * 20)
-                startCycle();
-
+            startRoutine(1);
             return;
         }
 
-        if(step == 3)
-        {
-            openQuestGui();
-            return;
-        }
-
-        timer++;
-
-        int interval = activeMode == QuestMode.QUEST_28_29
-            ? 7 * 20 : 6 * 20;
-
-        if(timer >= interval)
-            startCycle();
+        if(quest2Pending)
+            startRoutine(2);
     }
 
-    private void startCycle()
+    private void updateRoutineTimers()
     {
-        activeMode = mode.getSelected();
-        timer = 0;
+        if(!quest1.isChecked())
+        {
+            quest1Timer = 0;
+            quest1Pending = false;
+        }
+        else if(activeRoutine != 1 && !quest1Pending)
+        {
+            quest1Timer++;
+
+            if(quest1Timer >= QUEST1_INTERVAL)
+                quest1Pending = true;
+        }
+
+        if(!quest2.isChecked())
+        {
+            quest2Timer = 0;
+            quest2Pending = false;
+        }
+        else if(activeRoutine != 2 && !quest2Pending)
+        {
+            quest2Timer++;
+
+            if(quest2Timer >= QUEST2_INTERVAL)
+                quest2Pending = true;
+        }
+    }
+
+    private void startRoutine(int routine)
+    {
+        activeRoutine = routine;
         step = 0;
 
         openQuestGui();
@@ -158,8 +166,42 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
 
         previousScreen = MC.screen;
+
         MC.player.connection.sendCommand("quest");
+
         waitingForGui = true;
+    }
+
+    private void handleRoutineDelay()
+    {
+        if(waitTimer <= 0)
+            return;
+
+        waitTimer--;
+
+        if(waitTimer > 0)
+            return;
+
+        if(activeRoutine == 1 && step == 1)
+        {
+            step = 2;
+            openQuestGui();
+        }
+        else if(activeRoutine == 2 && step == 1)
+        {
+            step = 2;
+            openQuestGui();
+        }
+        else if(activeRoutine == 2 && step == 3)
+        {
+            step = 4;
+            openQuestGui();
+        }
+        else if(activeRoutine == 2 && step == 5)
+        {
+            step = 6;
+            openQuestGui();
+        }
     }
 
     private void handleQuestGui()
@@ -170,93 +212,99 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(MC.screen == previousScreen)
             return;
 
+        if(activeRoutine == 1)
+            handleQuest1(screen);
+        else if(activeRoutine == 2)
+            handleQuest2(screen);
+    }
+
+    private void handleQuest1(AbstractContainerScreen<?> screen)
+    {
         if(step == 0)
         {
-            if(!clickSlot(screen, 52))
+            // Quest 1: click slot 28.
+            if(!clickQuestSlot(screen, 27))
             {
-                finishCycle();
+                finishRoutine();
                 return;
             }
 
             step = 1;
-            delayTimer = 20;
+            waitTimer = QUEST1_DELAY;
             waitingForGui = false;
-            return;
         }
-
-        if(step == 1 && activeMode == QuestMode.QUEST_28_29)
+        else if(step == 2)
         {
-            if(!clickSlot(screen, 28))
+            // Quest 1: click slot 29.
+            if(!clickQuestSlot(screen, 28))
             {
-                finishCycle();
+                finishRoutine();
                 return;
             }
 
-            finishCycle();
-            return;
-        }
-
-        if(step == 3)
-        {
-            if(!clickSlot(screen, 52))
-            {
-                finishCycle();
-                return;
-            }
-
-            step = 4;
-            delayTimer = 20;
-            waitingForGui = false;
+            finishRoutine();
         }
     }
 
-    private void clickCurrentGui(int action)
+    private void handleQuest2(AbstractContainerScreen<?> screen)
     {
-        if(!(MC.screen instanceof AbstractContainerScreen<?> screen))
+        if(step == 0)
         {
-            delayTimer = 1;
-            return;
+            // Quest 2: first click slot 53.
+            if(!clickQuestSlot(screen, 52))
+            {
+                finishRoutine();
+                return;
+            }
+
+            step = 1;
+            waitTimer = QUEST2_DELAY;
+            waitingForGui = false;
         }
-
-        int slotIndex;
-
-        if(activeMode == QuestMode.QUEST_53_2)
-            slotIndex = 1;
-        else if(action == 1)
-            slotIndex = 3;
-        else
-            slotIndex = 4;
-
-        if(!clickSlot(screen, slotIndex))
+        else if(step == 2)
         {
-            finishCycle();
-            return;
-        }
+            // Quest 2: click slot 4.
+            if(!clickQuestSlot(screen, 3))
+            {
+                finishRoutine();
+                return;
+            }
 
-        if(activeMode == QuestMode.QUEST_53_4_53_5
-            && action == 1)
-        {
+            // Reopen the GUI after the previous GUI closes.
             step = 3;
-            openQuestGui();
-            return;
+            waitTimer = 1;
+            waitingForGui = false;
         }
+        else if(step == 4)
+        {
+            // Quest 2: second click slot 53.
+            if(!clickQuestSlot(screen, 52))
+            {
+                finishRoutine();
+                return;
+            }
 
-        finishCycle();
+            step = 5;
+            waitTimer = QUEST2_DELAY;
+            waitingForGui = false;
+        }
+        else if(step == 6)
+        {
+            // Quest 2: click slot 5.
+            if(!clickQuestSlot(screen, 4))
+            {
+                finishRoutine();
+                return;
+            }
+
+            finishRoutine();
+        }
     }
 
-    private void finishCycle()
-    {
-        step = 2;
-        timer = 0;
-        delayTimer = 0;
-        waitingForGui = false;
-    }
-
-    private boolean clickSlot(
+    private boolean clickQuestSlot(
         AbstractContainerScreen<?> screen, int slotIndex)
     {
-        if(slotIndex < 0
-            || screen.getMenu().slots.size() <= slotIndex)
+        if(screen.getMenu().slots.size() <= slotIndex)
             return false;
 
         Slot slot = screen.getMenu().slots.get(slotIndex);
@@ -266,5 +314,24 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         return true;
     }
+
+    private void finishRoutine()
+    {
+        if(activeRoutine == 1)
+        {
+            quest1Timer = 0;
+            quest1Pending = false;
+        }
+        else if(activeRoutine == 2)
+        {
+            quest2Timer = 0;
+            quest2Pending = false;
+        }
+
+        activeRoutine = 0;
+        step = 0;
+        waitTimer = 0;
+        waitingForGui = false;
+    }
 }
-```
+
