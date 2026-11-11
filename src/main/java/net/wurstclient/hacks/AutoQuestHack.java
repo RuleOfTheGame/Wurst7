@@ -25,6 +25,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
     private static final int QUEST1_DELAY = 30;
     private static final int QUEST2_DELAY = 20;
+    private static final int QUEST2_GUI_DELAY = 20;
 
     private final CheckboxSetting quest1 =
         new CheckboxSetting("Quest 1", true);
@@ -83,6 +84,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         waitTimer = 0;
 
         waitingForGui = false;
+        previousScreen = null;
     }
 
     @Override
@@ -270,9 +272,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
                 return;
             }
 
-            // Reopen the GUI after the previous GUI closes.
+            // Wait 1 second before reopening the quest GUI.
             step = 3;
-            waitTimer = 1;
+            waitTimer = QUEST2_GUI_DELAY;
             waitingForGui = false;
         }
         else if(step == 4)
@@ -332,6 +334,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         step = 0;
         waitTimer = 0;
         waitingForGui = false;
+        previousScreen = null;
     }
 }
-
