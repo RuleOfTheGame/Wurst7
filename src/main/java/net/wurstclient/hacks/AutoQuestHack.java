@@ -268,5 +268,3 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     }
 }
 ```
-}
-```
