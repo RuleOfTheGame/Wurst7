@@ -59,7 +59,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     protected void onEnable()
     {
         resetState();
-
         EVENTS.add(UpdateListener.class, this);
     }
 
@@ -67,7 +66,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     protected void onDisable()
     {
         EVENTS.remove(UpdateListener.class, this);
-
         resetState();
     }
 
@@ -93,12 +91,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(MC.player == null || MC.getConnection() == null)
             return;
 
-        // Stop a routine if its checkbox is disabled.
         if(activeRoutine == 1 && !quest1.isChecked()
             || activeRoutine == 2 && !quest2.isChecked())
-        {
             finishRoutine();
-        }
 
         updateRoutineTimers();
 
@@ -114,7 +109,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
         }
 
-        // Start pending routines one at a time.
         if(quest1Pending)
         {
             startRoutine(1);
@@ -158,7 +152,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         activeRoutine = routine;
         step = 0;
-
         openQuestGui();
     }
 
@@ -168,9 +161,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
 
         previousScreen = MC.screen;
-
         MC.player.connection.sendCommand("quest");
-
         waitingForGui = true;
     }
 
@@ -191,18 +182,21 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         }
         else if(activeRoutine == 2 && step == 1)
         {
+            // Wait for the GUI opened by clicking slot 53.
             step = 2;
-            openQuestGui();
+            waitingForGui = true;
         }
         else if(activeRoutine == 2 && step == 3)
         {
+            // After slot 4, reopen /quest.
             step = 4;
             openQuestGui();
         }
         else if(activeRoutine == 2 && step == 5)
         {
+            // Wait for the GUI opened by the second slot 53 click.
             step = 6;
-            openQuestGui();
+            waitingForGui = true;
         }
     }
 
@@ -211,8 +205,12 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         if(!(MC.screen instanceof AbstractContainerScreen<?> screen))
             return;
 
+        // Only handle a GUI that appeared after the previous one.
         if(MC.screen == previousScreen)
             return;
+
+        waitingForGui = false;
+        previousScreen = null;
 
         if(activeRoutine == 1)
             handleQuest1(screen);
@@ -224,7 +222,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         if(step == 0)
         {
-            // Quest 1: click slot 28.
             if(!clickQuestSlot(screen, 27))
             {
                 finishRoutine();
@@ -233,11 +230,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
             step = 1;
             waitTimer = QUEST1_DELAY;
-            waitingForGui = false;
         }
         else if(step == 2)
         {
-            // Quest 1: click slot 29.
             if(!clickQuestSlot(screen, 28))
             {
                 finishRoutine();
@@ -252,47 +247,46 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         if(step == 0)
         {
-            // Quest 2: first click slot 53.
+            // First GUI: click slot 53.
             if(!clickQuestSlot(screen, 52))
             {
                 finishRoutine();
                 return;
             }
 
+            // Remember the GUI before the server changes it.
+            previousScreen = screen;
             step = 1;
             waitTimer = QUEST2_DELAY;
-            waitingForGui = false;
         }
         else if(step == 2)
         {
-            // Quest 2: click slot 4.
+            // New GUI after slot 53: click slot 4.
             if(!clickQuestSlot(screen, 3))
             {
                 finishRoutine();
                 return;
             }
 
-            // Wait 1 second before reopening the quest GUI.
             step = 3;
             waitTimer = QUEST2_GUI_DELAY;
-            waitingForGui = false;
         }
         else if(step == 4)
         {
-            // Quest 2: second click slot 53.
+            // GUI opened by /quest: click slot 53 again.
             if(!clickQuestSlot(screen, 52))
             {
                 finishRoutine();
                 return;
             }
 
+            previousScreen = screen;
             step = 5;
             waitTimer = QUEST2_DELAY;
-            waitingForGui = false;
         }
         else if(step == 6)
         {
-            // Quest 2: click slot 5.
+            // New GUI after the second slot 53 click: click slot 5.
             if(!clickQuestSlot(screen, 4))
             {
                 finishRoutine();
@@ -333,7 +327,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
         activeRoutine = 0;
         step = 0;
         waitTimer = 0;
+
         waitingForGui = false;
         previousScreen = null;
     }
 }
+
