@@ -1,4 +1,5 @@
 
+
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
@@ -11,6 +12,7 @@ package net.wurstclient.hacks;
 import java.util.Comparator;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.block.Blocks;
 
 import net.wurstclient.Category;
@@ -23,11 +25,14 @@ import net.wurstclient.settings.CheckboxSetting;
 import net.wurstclient.settings.SliderSetting;
 import net.wurstclient.settings.SliderSetting.ValueDisplay;
 import net.wurstclient.util.BlockUtils;
+import net.wurstclient.util.RotationUtils;
 
 @SearchTags({"pumpkin bot", "pumpkin finder"})
 public final class PumpkinBotHack extends Hack
 	implements UpdateListener
 {
+	private static final double SEARCH_ANGLE = 60;
+
 	private final SliderSetting searchRange = new SliderSetting(
 		"Search range", "How far to search for pumpkins.",
 		32, 4, 64, 1, ValueDisplay.INTEGER);
@@ -58,12 +63,7 @@ public final class PumpkinBotHack extends Hack
 	protected void onDisable()
 	{
 		EVENTS.remove(UpdateListener.class, this);
-
-		PathProcessor.releaseControls();
-
-		target = null;
-		pathFinder = null;
-		processor = null;
+		resetPath();
 	}
 
 	@Override
@@ -74,21 +74,23 @@ public final class PumpkinBotHack extends Hack
 
 		if(!autoWalk.isChecked())
 		{
-			PathProcessor.releaseControls();
-			target = null;
-			pathFinder = null;
-			processor = null;
+			resetPath();
 			return;
 		}
 
-		// Stop if the target no longer exists.
+		// Target was destroyed by another hack.
 		if(target != null && !isPumpkin(target))
 		{
 			resetPath();
 			return;
 		}
 
-		// Stop moving when already next to the target.
+		// Face the current target.
+		if(target != null)
+			WURST.getRotationFaker()
+				.faceVectorClient(Vec3.atCenterOf(target));
+
+		// Wait next to the target for the other hack to break it.
 		if(target != null && isNextToTarget(
 			BlockPos.containing(MC.player.position()), target))
 		{
@@ -98,7 +100,7 @@ public final class PumpkinBotHack extends Hack
 			return;
 		}
 
-		// Find the nearest pumpkin.
+		// Find the nearest pumpkin in front of the player.
 		if(target == null)
 		{
 			target = findNearestPumpkin();
@@ -109,10 +111,10 @@ public final class PumpkinBotHack extends Hack
 			pathFinder = new PumpkinPathFinder(target);
 		}
 
-		// Calculate path.
 		if(pathFinder == null)
 			return;
 
+		// Calculate path.
 		if(!pathFinder.isDone() && !pathFinder.isFailed())
 		{
 			PathProcessor.lockControls();
@@ -120,7 +122,6 @@ public final class PumpkinBotHack extends Hack
 			return;
 		}
 
-		// No path found.
 		if(pathFinder.isFailed())
 		{
 			resetPath();
@@ -134,6 +135,12 @@ public final class PumpkinBotHack extends Hack
 			processor = pathFinder.getProcessor();
 		}
 
+		if(processor == null)
+		{
+			resetPath();
+			return;
+		}
+
 		// Check whether the path is still valid.
 		if(!pathFinder.isPathStillValid(processor.getIndex())
 			|| processor.getTicksOffPath() > 20)
@@ -143,7 +150,7 @@ public final class PumpkinBotHack extends Hack
 			return;
 		}
 
-		// Move along the path.
+		// Move toward the target.
 		PathProcessor.lockControls();
 		processor.process();
 
@@ -166,9 +173,18 @@ public final class PumpkinBotHack extends Hack
 			playerPos.offset(-range, -range, -range),
 			playerPos.offset(range, range, range))
 			.filter(this::isPumpkin)
+			.filter(this::isInFront)
 			.min(Comparator.comparingDouble(
 				pos -> pos.distToCenterSqr(MC.player.position())))
 			.orElse(null);
+	}
+
+	private boolean isInFront(BlockPos pos)
+	{
+		Vec3 center = Vec3.atCenterOf(pos);
+
+		return RotationUtils.getAngleToLookVec(center)
+			<= SEARCH_ANGLE;
 	}
 
 	private boolean isPumpkin(BlockPos pos)
@@ -185,7 +201,9 @@ public final class PumpkinBotHack extends Hack
 		return pos.north().equals(pumpkin)
 			|| pos.east().equals(pumpkin)
 			|| pos.south().equals(pumpkin)
-			|| pos.west().equals(pumpkin);
+			|| pos.west().equals(pumpkin)
+			|| pos.above().equals(pumpkin)
+			|| pos.below().equals(pumpkin);
 	}
 
 	private void resetPath()
