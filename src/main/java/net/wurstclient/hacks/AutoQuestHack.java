@@ -49,13 +49,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
     private int timer;
     private int step;
-    private int stepDelayTimer;
-
-    private int firstSlot;
-    private int secondSlot;
-    private int thirdSlot;
-    private int stepDelay;
-    private int cycleInterval;
+    private int delayTimer;
 
     private boolean waitingForGui;
     private Screen previousScreen;
@@ -64,7 +58,6 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         super("AutoQuest");
         setCategory(Category.ITEMS);
-
         addSetting(mode);
     }
 
@@ -73,10 +66,10 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         timer = 0;
         step = 0;
-        stepDelayTimer = 0;
+        delayTimer = 0;
         waitingForGui = false;
 
-        loadModeSettings();
+        activeMode = mode.getSelected();
 
         EVENTS.add(UpdateListener.class, this);
     }
@@ -88,50 +81,9 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         timer = 0;
         step = 0;
-        stepDelayTimer = 0;
+        delayTimer = 0;
         waitingForGui = false;
-    }
-
-    private void loadModeSettings()
-    {
-        activeMode = mode.getSelected();
-
-        switch(activeMode)
-        {
-            case QUEST_28_29:
-                // Slot 28 -> wait 1.5 seconds
-                // -> reopen /quest -> slot 29
-                // -> repeat after 7 seconds.
-                firstSlot = 27;
-                secondSlot = 28;
-                thirdSlot = -1;
-                stepDelay = 30;
-                cycleInterval = 7 * 20;
-                break;
-
-            case QUEST_53_2:
-                // /quest -> slot 53 -> wait 1 second
-                // -> slot 2 on transitioned GUI
-                // -> repeat after 6 seconds.
-                firstSlot = 52;
-                secondSlot = 1;
-                thirdSlot = -1;
-                stepDelay = 20;
-                cycleInterval = 6 * 20;
-                break;
-
-            case QUEST_53_4_53_5:
-                // /quest -> slot 53 -> wait 1 second
-                // -> slot 4 -> /quest -> slot 53
-                // -> wait 1 second -> slot 5
-                // -> repeat after 6 seconds.
-                firstSlot = 52;
-                secondSlot = 3;
-                thirdSlot = 4;
-                stepDelay = 20;
-                cycleInterval = 6 * 20;
-                break;
-        }
+        previousScreen = null;
     }
 
     @Override
@@ -146,49 +98,54 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
         }
 
-        // Step 1 or 4: wait before the next click.
         if(step == 1 || step == 4)
         {
-            stepDelayTimer--;
+            delayTimer--;
 
-            if(stepDelayTimer <= 0)
+            if(delayTimer <= 0)
             {
                 if(step == 1)
                 {
                     if(activeMode == QuestMode.QUEST_28_29)
                         openQuestGui();
                     else
-                        clickSecondSlotOnCurrentGui();
+                        clickCurrentGui(1);
                 }
                 else
-                    clickThirdSlotOnCurrentGui();
+                    clickCurrentGui(2);
             }
 
             return;
         }
 
-        // Step 2: wait before starting the next cycle.
         if(step == 2)
         {
             timer++;
 
-            if(timer >= cycleInterval)
+            if(timer >= 6 * 20)
                 startCycle();
 
             return;
         }
 
-        // Step 0: initial wait.
+        if(step == 3)
+        {
+            openQuestGui();
+            return;
+        }
+
         timer++;
 
-        if(timer >= cycleInterval)
+        int interval = activeMode == QuestMode.QUEST_28_29
+            ? 7 * 20 : 6 * 20;
+
+        if(timer >= interval)
             startCycle();
     }
 
     private void startCycle()
     {
-        loadModeSettings();
-
+        activeMode = mode.getSelected();
         timer = 0;
         step = 0;
 
@@ -201,9 +158,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
             return;
 
         previousScreen = MC.screen;
-
         MC.player.connection.sendCommand("quest");
-
         waitingForGui = true;
     }
 
@@ -217,79 +172,72 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         if(step == 0)
         {
-            // First click of the cycle.
-            if(!clickQuestSlot(screen, firstSlot))
+            if(!clickSlot(screen, 52))
             {
                 finishCycle();
                 return;
             }
 
             step = 1;
+            delayTimer = 20;
             waitingForGui = false;
-            stepDelayTimer = stepDelay;
+            return;
         }
-        else if(step == 1
-            && activeMode == QuestMode.QUEST_28_29)
+
+        if(step == 1 && activeMode == QuestMode.QUEST_28_29)
         {
-            // Mode 1: click slot 29 after reopening /quest.
-            if(!clickQuestSlot(screen, secondSlot))
+            if(!clickSlot(screen, 28))
             {
                 finishCycle();
                 return;
             }
 
             finishCycle();
+            return;
         }
-        else if(step == 3)
+
+        if(step == 3)
         {
-            // Mode 3: second /quest, click slot 53.
-            if(!clickQuestSlot(screen, firstSlot))
+            if(!clickSlot(screen, 52))
             {
                 finishCycle();
                 return;
             }
 
             step = 4;
+            delayTimer = 20;
             waitingForGui = false;
-            stepDelayTimer = stepDelay;
         }
     }
 
-    private void clickSecondSlotOnCurrentGui()
+    private void clickCurrentGui(int action)
     {
         if(!(MC.screen instanceof AbstractContainerScreen<?> screen))
         {
-            stepDelayTimer = 1;
+            delayTimer = 1;
             return;
         }
 
-        if(!clickQuestSlot(screen, secondSlot))
+        int slotIndex;
+
+        if(activeMode == QuestMode.QUEST_53_2)
+            slotIndex = 1;
+        else if(action == 1)
+            slotIndex = 3;
+        else
+            slotIndex = 4;
+
+        if(!clickSlot(screen, slotIndex))
         {
             finishCycle();
             return;
         }
 
-        if(activeMode == QuestMode.QUEST_53_4_53_5)
+        if(activeMode == QuestMode.QUEST_53_4_53_5
+            && action == 1)
         {
-            // After slot 4, send /quest again.
             step = 3;
             openQuestGui();
-        }
-        else
-            finishCycle();
-    }
-
-    private void clickThirdSlotOnCurrentGui()
-    {
-        if(!(MC.screen instanceof AbstractContainerScreen<?> screen))
-        {
-            stepDelayTimer = 1;
-            return;
-        }
-
-        if(!clickQuestSlot(screen, thirdSlot))
-        {
-            finishCycle();
             return;
         }
 
@@ -300,10 +248,11 @@ public final class AutoQuestHack extends Hack implements UpdateListener
     {
         step = 2;
         timer = 0;
+        delayTimer = 0;
         waitingForGui = false;
     }
 
-    private boolean clickQuestSlot(
+    private boolean clickSlot(
         AbstractContainerScreen<?> screen, int slotIndex)
     {
         if(slotIndex < 0
@@ -317,5 +266,7 @@ public final class AutoQuestHack extends Hack implements UpdateListener
 
         return true;
     }
+}
+```
 }
 ```
