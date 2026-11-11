@@ -31,7 +31,7 @@ import net.wurstclient.util.RotationUtils;
 public final class PumpkinBotHack extends Hack
 	implements UpdateListener
 {
-	private static final double SEARCH_ANGLE = 60;
+	private static final double SEARCH_ANGLE = 180;
 
 	private final SliderSetting searchRange = new SliderSetting(
 		"Search range", "How far to search for pumpkins.",
