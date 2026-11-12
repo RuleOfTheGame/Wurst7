@@ -1,5 +1,4 @@
 
-
 /*
  * Copyright (c) 2014-2026 Wurst-Imperium and contributors.
  *
@@ -10,6 +9,8 @@
 package net.wurstclient.hacks;
 
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -32,18 +33,23 @@ public final class PumpkinBotHack extends Hack
 	implements UpdateListener
 {
 	private static final double SEARCH_ANGLE = 180;
+	private static final long TARGET_TIMEOUT = 3000;
 
 	private final SliderSetting searchRange = new SliderSetting(
 		"Search range", "How far to search for pumpkins.",
-		32, 4, 64, 1, ValueDisplay.INTEGER);
+		48, 4, 96, 1, ValueDisplay.INTEGER);
 
 	private final CheckboxSetting autoWalk =
 		new CheckboxSetting("Auto walk",
 			"Automatically walk to the nearest pumpkin.", true);
 
+	private final Set<BlockPos> ignoredTargets = new HashSet<>();
+
 	private BlockPos target;
 	private PumpkinPathFinder pathFinder;
 	private PathProcessor processor;
+
+	private long targetWaitStartTime;
 
 	public PumpkinBotHack()
 	{
@@ -57,6 +63,7 @@ public final class PumpkinBotHack extends Hack
 	protected void onEnable()
 	{
 		EVENTS.add(UpdateListener.class, this);
+		ignoredTargets.clear();
 	}
 
 	@Override
@@ -64,6 +71,7 @@ public final class PumpkinBotHack extends Hack
 	{
 		EVENTS.remove(UpdateListener.class, this);
 		resetPath();
+		ignoredTargets.clear();
 	}
 
 	@Override
@@ -78,6 +86,9 @@ public final class PumpkinBotHack extends Hack
 			return;
 		}
 
+		// Remove ignored positions when their pumpkins disappear.
+		ignoredTargets.removeIf(pos -> !isPumpkin(pos));
+
 		// Target was destroyed by another hack.
 		if(target != null && !isPumpkin(target))
 		{
@@ -90,17 +101,29 @@ public final class PumpkinBotHack extends Hack
 			WURST.getRotationFaker()
 				.faceVectorClient(Vec3.atCenterOf(target));
 
-		// Wait next to the target for the other hack to break it.
+		// Wait for the other hack to break the target.
 		if(target != null && isNextToTarget(
 			BlockPos.containing(MC.player.position()), target))
 		{
 			PathProcessor.releaseControls();
 			pathFinder = null;
 			processor = null;
-			return;
-		}
 
-		// Find the nearest pumpkin in front of the player.
+			if(targetWaitStartTime == 0)
+				targetWaitStartTime = System.currentTimeMillis();
+
+			if(System.currentTimeMillis() - targetWaitStartTime
+				>= TARGET_TIMEOUT)
+			{
+				ignoredTargets.add(target);
+				resetPath();
+			}
+
+			return;
+		} else
+			targetWaitStartTime = 0;
+
+		// Find the nearest pumpkin around the player.
 		if(target == null)
 		{
 			target = findNearestPumpkin();
@@ -173,6 +196,7 @@ public final class PumpkinBotHack extends Hack
 			playerPos.offset(-range, -range, -range),
 			playerPos.offset(range, range, range))
 			.filter(this::isPumpkin)
+			.filter(pos -> !ignoredTargets.contains(pos))
 			.filter(this::isInFront)
 			.min(Comparator.comparingDouble(
 				pos -> pos.distToCenterSqr(MC.player.position())))
@@ -213,6 +237,7 @@ public final class PumpkinBotHack extends Hack
 		target = null;
 		pathFinder = null;
 		processor = null;
+		targetWaitStartTime = 0;
 	}
 
 	private class PumpkinPathFinder extends PathFinder
